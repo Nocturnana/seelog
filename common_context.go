@@ -116,12 +116,10 @@ func extractCallerInfo(skip int) (*logContext, error) {
 		funcName = funcName[len(workingDir):]
 	}
 
-	//TODO: should get only use traceid format
-	traceId := GetTraceId() 
+
 	ctx = &logContext{
 		funcName:  funcName,
 		line:      line,
-		traceid:   traceId,
 		shortPath: shortPath,
 		codePath:  codePath,
 		fullPath:  fullPath,
@@ -152,6 +150,7 @@ func specifyContext(skip int, custom interface{}) (LogContextInterface, error) {
 	if err != nil {
 		return &errorContext{callTime, err}, err
 	}
+	caller.traceid = GetTraceId()
 	ctx := new(logContext)
 	*ctx = *caller
 	ctx.callTime = callTime
