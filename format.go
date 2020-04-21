@@ -92,6 +92,8 @@ var formatterFuncs = map[string]FormatterFunc{
 	"FullPath":  formatterFullPath,
 	"File":      formatterFile,
 	"RelFile":   formatterRelFile,
+	"CodePath":   formatterCodePath,
+	"TraceId":   formatterTraceId,
 	"Func":      FormatterFunction,
 	"FuncShort": FormatterFunctionShort,
 	"Line":      formatterLine,
@@ -391,6 +393,15 @@ func formatterFile(message string, level LogLevel, context LogContextInterface) 
 
 func formatterRelFile(message string, level LogLevel, context LogContextInterface) interface{} {
 	return context.ShortPath()
+}
+
+func formatterCodePath(message string, level LogLevel, context LogContextInterface) interface{} {
+	return context.CodePath()
+}
+
+
+func formatterTraceId(message string, level LogLevel, context LogContextInterface) interface{} {
+	return context.TraceId()
 }
 
 func FormatterFunction(message string, level LogLevel, context LogContextInterface) interface{} {

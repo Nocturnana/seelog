@@ -41,6 +41,8 @@ var (
 	stackCacheLock sync.RWMutex
 )
 
+var BuildDir = ""
+
 func init() {
 	wd, err := os.Getwd()
 	if err == nil {
@@ -55,8 +57,12 @@ type LogContextInterface interface {
 	Func() string
 	// Caller's line number.
 	Line() int
+	// Caller's traceid need init first.
+	TraceId() string
 	// Caller's file short path (in slashed form).
 	ShortPath() string
+	// Caller's code file short path (in slashed form).
+	CodePath() string
 	// Caller's file full path (in slashed form).
 	FullPath() string
 	// Caller's file name (without path).
@@ -104,15 +110,20 @@ func extractCallerInfo(skip int) (*logContext, error) {
 	} else {
 		shortPath = fullPath
 	}
+	codePath := strings.Replace(fullPath, BuildDir+"/", "", 1)
 	funcName := funcInfo.Name()
 	if strings.HasPrefix(funcName, workingDir) {
 		funcName = funcName[len(workingDir):]
 	}
 
+	//TODO: should get only use traceid format
+	traceId := GetTraceId() 
 	ctx = &logContext{
 		funcName:  funcName,
 		line:      line,
+		traceid:   traceId,
 		shortPath: shortPath,
+		codePath:  codePath,
 		fullPath:  fullPath,
 		fileName:  filepath.Base(fullPath),
 	}
@@ -152,7 +163,9 @@ func specifyContext(skip int, custom interface{}) (LogContextInterface, error) {
 type logContext struct {
 	funcName  string
 	line      int
+	traceid   string
 	shortPath string
+	codePath  string
 	fullPath  string
 	fileName  string
 	callTime  time.Time
@@ -171,8 +184,16 @@ func (context *logContext) Line() int {
 	return context.line
 }
 
+func (context *logContext) TraceId() string {
+	return context.traceid
+}
+
 func (context *logContext) ShortPath() string {
 	return context.shortPath
+}
+
+func (context *logContext) CodePath() string {
+	return context.codePath
 }
 
 func (context *logContext) FullPath() string {
@@ -209,12 +230,20 @@ func (errContext *errorContext) Line() int {
 	return -1
 }
 
+func (errContext *errorContext) TraceId() string {
+	return errContext.getErrorText("TraceId")
+}
+
 func (errContext *errorContext) Func() string {
 	return errContext.getErrorText("Func")
 }
 
 func (errContext *errorContext) ShortPath() string {
 	return errContext.getErrorText("ShortPath")
+}
+
+func (errContext *errorContext) CodePath() string {
+	return errContext.getErrorText("CodePath")
 }
 
 func (errContext *errorContext) FullPath() string {
