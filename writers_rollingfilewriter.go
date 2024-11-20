@@ -362,10 +362,13 @@ func (rw *rollingFileWriter) archiveExplodedLogs(logFilename string, compression
 			os.Remove(dst.Name()) // Can't do anything when we fail to remove temp file
 			return
 		}
+		currentTime := time.Now()
 
+		// 格式化时间为字符串，格式为 "2006-01-02-15-04-05"
+		formattedTime := currentTime.Format("2006-01-02-15-04-05")
 		// Finalize archive by swapping the buffered archive into place
 		err = os.Rename(dst.Name(), filepath.Join(rw.archivePath,
-			compressionType.rollingArchiveTypeName(logFilename, true)))
+			compressionType.rollingArchiveTypeName(formattedTime, true)))
 	}()
 
 	// archive entry
@@ -504,7 +507,7 @@ func cleanOldGzFiles(folderPath string, keepCount int) error {
 		if err != nil {
 			fmt.Printf("无法删除文件 %s: %v\n", file.Path, err)
 		} else {
-			fmt.Printf("已删除文件: %s\n", file.Path)
+			return fmt.Errorf("已删除文件: %s\n", file.Path)
 		}
 	}
 
