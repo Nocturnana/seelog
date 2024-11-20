@@ -379,6 +379,7 @@ func (rw *rollingFileWriter) archiveExplodedLogs(logFilename string, compression
 		return err
 	}
 	_, err = io.Copy(w, src)
+	cleanOldGzFiles(filepath.Dir(rw.archivePath), rw.maxRolls)
 	return err
 }
 
@@ -452,37 +453,97 @@ func (rw *rollingFileWriter) archiveUnexplodedLogs(compressionType compressionTy
 	return nil
 }
 
+type FileInfoWithTime struct {
+	FileInfo os.FileInfo
+	Path     string
+	ModTime  time.Time
+}
+
+type ByModTime []FileInfoWithTime
+
+func (a ByModTime) Len() int           { return len(a) }
+func (a ByModTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByModTime) Less(i, j int) bool { return a[i].ModTime.After(a[j].ModTime) }
+
+func cleanOldGzFiles(folderPath string, keepCount int) error {
+	// 读取文件夹中的所有文件
+	files, err := ioutil.ReadDir(folderPath)
+	if err != nil {
+		return fmt.Errorf("无法读取目录: %v", err)
+	}
+
+	var gzFiles []FileInfoWithTime
+
+	// 过滤出以 .gz 结尾的文件
+	for _, file := range files {
+		if !file.IsDir() && filepath.Ext(file.Name()) == ".gz" {
+			fullPath := filepath.Join(folderPath, file.Name())
+			gzFiles = append(gzFiles, FileInfoWithTime{
+				FileInfo: file,
+				Path:     fullPath,
+				ModTime:  file.ModTime(),
+			})
+		}
+	}
+
+	// 如果文件数量少于等于要保留的数量，直接返回
+	if len(gzFiles) <= keepCount {
+		return nil
+	}
+
+	// 按文件的修改时间排序，最近修改的排在前面
+	sort.Sort(ByModTime(gzFiles))
+
+	// 保留最新的 keepCount 个文件，删除其余的文件
+	filesToDelete := gzFiles[keepCount:]
+
+	for _, file := range filesToDelete {
+		err := os.Remove(file.Path)
+		if err != nil {
+			fmt.Printf("无法删除文件 %s: %v\n", file.Path, err)
+		} else {
+			fmt.Printf("已删除文件: %s\n", file.Path)
+		}
+	}
+
+	return nil
+}
+
 func (rw *rollingFileWriter) deleteOldRolls(history []string) error {
 	if rw.maxRolls <= 0 {
 		return nil
 	}
-
 	rollsToDelete := len(history) - rw.maxRolls
 	if rollsToDelete <= 0 {
 		return nil
 	}
-
+	var err error
 	if rw.archiveType != rollingArchiveNone {
 		if rw.archiveExploded {
 			os.MkdirAll(rw.archivePath, defaultDirectoryPermissions)
-
 			// Archive logs
-			for i := 0; i < rollsToDelete; i++ {
-				rw.archiveExplodedLogs(history[i], compressionTypes[rw.archiveType])
+			if rw.archiveType == rollingArchiveGzip {
+				for i := 0; i < rollsToDelete; i++ {
+					rw.archiveExplodedLogs(history[i], compressionTypes[rw.archiveType])
+				}
 			}
+
 		} else {
 			os.MkdirAll(filepath.Dir(rw.archivePath), defaultDirectoryPermissions)
 
 			rw.archiveUnexplodedLogs(compressionTypes[rw.archiveType], rollsToDelete, history)
 		}
-	}
-
-	var err error
-	// In all cases (archive files or not) the files should be deleted.
-	for i := 0; i < rollsToDelete; i++ {
-		// Try best to delete files without breaking the loop.
-		if err = tryRemoveFile(filepath.Join(rw.currentDirPath, history[i])); err != nil {
-			reportInternalError(err)
+	} else {
+		rollsToDelete := len(history) - rw.maxRolls
+		if rollsToDelete <= 0 {
+			return nil
+		}
+		// In all cases (archive files or not) the files should be deleted.
+		for i := 0; i < rollsToDelete; i++ {
+			// Try best to delete files without breaking the loop.
+			if err = tryRemoveFile(filepath.Join(rw.currentDirPath, history[i])); err != nil {
+				reportInternalError(err)
+			}
 		}
 	}
 
@@ -543,11 +604,9 @@ func (rw *rollingFileWriter) roll() error {
 	// and, if after that the archive exceeds the allowed max limit, older rolls
 	// must the removed/archived.
 	history = append(history, newHistoryName)
-	if len(history) > rw.maxRolls {
-		err = rw.deleteOldRolls(history)
-		if err != nil {
-			return err
-		}
+	err = rw.deleteOldRolls(history)
+	if err != nil {
+		return err
 	}
 
 	return nil
