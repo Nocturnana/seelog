@@ -348,7 +348,7 @@ func (rw *rollingFileWriter) archiveExplodedLogs(logFilename string, compression
 	if err != nil {
 		return err
 	}
-	defer src.Close() // Read-only
+	// Read-only
 
 	// Buffer to a temporary file on the same partition
 	// Note: archivePath is a path to a directory when handling exploded logs
@@ -379,6 +379,8 @@ func (rw *rollingFileWriter) archiveExplodedLogs(logFilename string, compression
 		return err
 	}
 	_, err = io.Copy(w, src)
+	src.Close()
+	os.Remove(rollPath)
 	cleanOldGzFiles(filepath.Dir(rw.archivePath), rw.maxRolls)
 	return err
 }
