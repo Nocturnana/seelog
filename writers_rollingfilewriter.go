@@ -515,10 +515,7 @@ func (rw *rollingFileWriter) deleteOldRolls(history []string) error {
 	if rw.maxRolls <= 0 {
 		return nil
 	}
-	rollsToDelete := len(history) - rw.maxRolls
-	if rollsToDelete <= 0 {
-		return nil
-	}
+	rollsToDelete := 0
 	var err error
 	if rw.archiveType != rollingArchiveNone {
 		if rw.archiveExploded {
