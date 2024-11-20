@@ -524,6 +524,7 @@ func (rw *rollingFileWriter) deleteOldRolls(history []string) error {
 		if rw.archiveExploded {
 			os.MkdirAll(rw.archivePath, defaultDirectoryPermissions)
 			// Archive logs
+			rollsToDelete = len(history) - 1
 			if rw.archiveType == rollingArchiveGzip {
 				for i := 0; i < rollsToDelete; i++ {
 					rw.archiveExplodedLogs(history[i], compressionTypes[rw.archiveType])
